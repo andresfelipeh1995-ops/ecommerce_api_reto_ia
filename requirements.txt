@@ -3,3 +3,11 @@ uvicorn==0.24.0
 pymysql==1.1.0
 sqlalchemy==2.0.23
 pydantic==2.5.2
+pydantic-settings==2.1.0
+email-validator==2.1.0
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.6
+slowapi==0.1.9
+cryptography>=41
