@@ -20,7 +20,7 @@ def test_openapi_metadata(client):
     spec = client.get("/openapi.json").json()
     assert spec["info"]["title"] == "E-commerce API"
     assert spec["info"]["description"]
-    assert {t["name"] for t in spec["tags"]} == {"auth", "users", "products", "orders"}
+    assert {t["name"] for t in spec["tags"]} == {"auth", "users", "products", "orders", "meta"}
 
 
 def test_protected_endpoints_document_401(client):

@@ -41,6 +41,12 @@ def test_cors_blocks_unknown_origin(client):
     assert "access-control-allow-origin" not in resp.headers
 
 
+def test_health_endpoint_returns_ok(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
 def test_openapi_documents_new_endpoints(client):
     paths = client.get("/openapi.json").json()["paths"]
     assert "/users/{user_id}/orders" in paths

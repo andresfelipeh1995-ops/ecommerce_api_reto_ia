@@ -14,13 +14,14 @@ y paginación, y una suite de pruebas con cobertura mínima del 70 %.
 4. [Requisitos](#requisitos)
 5. [Instalación y configuración](#instalación-y-configuración)
 6. [Cómo ejecutar la API](#cómo-ejecutar-la-api)
-7. [Documentación de la API](#documentación-de-la-api)
-8. [Endpoints](#endpoints)
-9. [Ejemplo de uso completo](#ejemplo-de-uso-completo)
-10. [Pruebas](#pruebas)
-11. [Decisiones de diseño y seguridad](#decisiones-de-diseño-y-seguridad)
-12. [Limitaciones conocidas](#limitaciones-conocidas)
-13. [Solución de problemas](#solución-de-problemas)
+7. [Ejecución con Docker](#ejecución-con-docker)
+8. [Documentación de la API](#documentación-de-la-api)
+9. [Endpoints](#endpoints)
+10. [Ejemplo de uso completo](#ejemplo-de-uso-completo)
+11. [Pruebas](#pruebas)
+12. [Decisiones de diseño y seguridad](#decisiones-de-diseño-y-seguridad)
+13. [Limitaciones conocidas](#limitaciones-conocidas)
+14. [Solución de problemas](#solución-de-problemas)
 
 ## Características
 - Registro e inicio de sesión con **JWT** (contraseñas cifradas con bcrypt).
@@ -101,6 +102,9 @@ ecommerce_api/
 ├── requirements.txt
 ├── requirements-dev.txt  Dependencias de pruebas
 ├── pytest.ini            Configuración de pytest y cobertura mínima
+├── Dockerfile            Imagen de la API (slim, usuario no-root)
+├── docker-compose.yml    Orquesta api + MySQL con volumen persistente
+├── .dockerignore
 ├── app/
 │   ├── main.py           Aplicación FastAPI y middleware
 │   ├── config.py         Configuración desde variables de entorno
@@ -168,6 +172,54 @@ Los usuarios se registran como usuarios normales. Para volver administrador a un
 UPDATE users SET is_admin = 1 WHERE email = 'admin@correo.com';
 ```
 
+## Ejecución con Docker
+
+Levanta la API y MySQL 8 en contenedores, con los datos de la base de datos en un
+volumen persistente.
+
+### Requisitos
+- Docker Desktop (Windows/macOS) o Docker Engine con el plugin `docker compose`
+
+### Pasos
+1. En `.env` define, además de `SECRET_KEY`, dos claves para MySQL:
+   ```bash
+   MYSQL_ROOT_PASSWORD=<clave-root-larga>
+   MYSQL_PASSWORD=<clave-app-larga>
+   ```
+   Genera claves con `openssl rand -hex 16`.
+2. Construye e inicia:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Verifica:
+   ```bash
+   curl http://localhost:8000/products/
+   docker compose logs -f api
+   ```
+   La API queda en `http://localhost:8000` (docs en `/docs`). Las tablas se crean
+   solas en el primer arranque.
+
+### Persistencia
+- MySQL guarda sus datos en el volumen nombrado `ecommerce_mysql_data` (montado en
+  `/var/lib/mysql`): sobrevive a `docker compose down` y a reinicios.
+- `docker compose down` detiene todo **conservando** los datos.
+- `docker compose down -v` borra también el volumen: **pierdes la base de datos**.
+
+### Qué hace cada pieza
+| Pieza | Detalle |
+|---|---|
+| `Dockerfile` | Python 3.12 slim, dependencias en capa cacheada, usuario no-root (`appuser`), `HEALTHCHECK` sobre `/health` |
+| Servicio `mysql` | Imagen `mysql:8.0`; crea la BD `ecommerce_db` y el usuario `ecommerce_app` (mínimo privilegio, sin root); `healthcheck` con `mysqladmin ping`; publica 3306 solo en `127.0.0.1` |
+| Servicio `api` | Construye la imagen local; espera a que MySQL esté sano (`depends_on: service_healthy`); se conecta por la red interna de Compose (`mysql:3306`); publica `8000:8000` |
+
+### Notas
+- El `DATABASE_URL` del `.env` local (por ejemplo SQLite) **no afecta** a los
+  contenedores: la API en Docker construye su propia `DATABASE_URL` desde
+  `MYSQL_PASSWORD` apuntando a `mysql:3306`.
+- `.env` está en `.gitignore`: no subas las claves al repositorio.
+- Para producción real: pon HTTPS delante (proxy reverso), no publiques 3306,
+  usa secretos del orquestador y considera Alembic para migraciones.
+
 ## Documentación de la API
 | URL | Descripción |
 |---|---|
@@ -178,6 +230,7 @@ UPDATE users SET is_admin = 1 WHERE email = 'admin@correo.com';
 ## Endpoints
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
+| GET | `/health` | Público | Health check para probes/monitores |
 | POST | `/auth/login` | Público (5/min) | Devuelve un token JWT |
 | POST | `/users/` | Público (10/min) | Registra un usuario |
 | GET | `/users/me` | Autenticado | Perfil del usuario actual |

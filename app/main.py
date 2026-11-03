@@ -35,6 +35,7 @@ TAGS_METADATA = [
     {"name": "users", "description": "Registro de usuarios, perfil e historial de pedidos."},
     {"name": "products", "description": "Catálogo de productos con paginación."},
     {"name": "orders", "description": "Creación de pedidos con control de stock."},
+    {"name": "meta", "description": "Probes operativos (health check)."},
 ]
 
 app = FastAPI(
@@ -54,6 +55,21 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.get(
+    "/health",
+    tags=["meta"],
+    summary="Health check",
+    response_description="Estado del servicio",
+)
+def health_check() -> dict:
+    """Comprueba que la aplicación está viva.
+
+    No toca la base de datos; pensado para probes de contenedores,
+    balanceadores y monitores.
+    """
+    return {"status": "ok"}
 
 
 @app.exception_handler(SQLAlchemyError)

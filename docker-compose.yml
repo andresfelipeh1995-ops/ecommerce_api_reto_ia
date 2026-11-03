@@ -1,0 +1,57 @@
+# Orquesta la API FastAPI + MySQL 8 con datos persistentes.
+#
+# Uso:
+#   1. Define las variables en .env (ver .env.example): SECRET_KEY y las dos claves de MySQL
+#   2. docker compose up -d --build
+#   3. La API queda en http://localhost:8000 (docs en /docs)
+#
+# Los datos de MySQL viven en el volumen nombrado `mysql_data` y sobreviven a
+# `docker compose down` y a reinicios. Para borrarlos del todo: `docker compose down -v`.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ecommerce_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en el .env}
+      # El entrypoint oficial crea la BD y un usuario de mínimo privilegio
+      # (con permisos solo sobre ecommerce_db, incluido CREATE para create_all)
+      MYSQL_DATABASE: ecommerce_db
+      MYSQL_USER: ecommerce_app
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en el .env}
+    ports:
+      # Solo en loopback: MySQL no debe quedar expuesto a la red
+      # 3307 en el host porque el 3306 está bloqueado/reservado en esta máquina
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql   # <- persistencia de la base de datos
+    healthcheck:
+      # $$ escapa el $; compose lo convierte en $ dentro del contenedor
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build: .
+    container_name: ecommerce_api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy   # la API espera a que MySQL esté sano
+    environment:
+      # La API en contenedor siempre habla con MySQL, ignora el DATABASE_URL local del .env
+      DATABASE_URL: mysql+pymysql://ecommerce_app:${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en el .env}@mysql:3306/ecommerce_db
+      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en el .env (openssl rand -hex 32)}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+      DISCOUNT_THRESHOLD: ${DISCOUNT_THRESHOLD:-100}
+      DISCOUNT_PERCENT: ${DISCOUNT_PERCENT:-10}
+    ports:
+      - "8000:8000"
+
+volumes:
+  mysql_data:
+    name: ecommerce_mysql_data

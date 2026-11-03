@@ -1,0 +1,19 @@
+# Lo que NO se copia al contexto/imagen de Docker
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+tests
+.env
+ecommerce_demo.db
+a.txt
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
